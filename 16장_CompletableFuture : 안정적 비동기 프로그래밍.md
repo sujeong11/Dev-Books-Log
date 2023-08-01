@@ -1,0 +1,295 @@
+## 16.1 Future의 단순 활용
+
+**비동기 계산을 모델링**하는데 Future를 이용할 수 있으며, Future는 **계산이 끝났을 때 결과에 접근할 수 있는 참조를 제공**한다. Future를 이용하려면 시간이 오래 걸리는 작업을 `Callable` 객체 내부로 감싼 다음에 `ExcutorService`에 제출해야 한다.
+
+다른 작업을 처리하다가 시간이 오래 걸리는 작업의 결과가 필요한 시점이 되었을 때 Future의 `get` 메서드로 결과를 가져올 수 있다. get 메서드를 호출했을 때 이미 계산이 완료되어 결과가 준비되었다면 즉시 결과를 반환하지만 `결과가 준비되지 않았다면 작업이 완료될 때까지 스레드를 블록`시킨다.
+
+### Future 제한
+
+Future 인터페이스가 다양한 메서드를 제공하지만 이것만으로는 간결한 동시 실행 코드를 구현하기는 충분하지 않다. 그래서 다음과 같은 선언형 기능을 사용할 수 있도록 자바 8은 CompletableFuture 클래스를 제공한다. `CompletableFuture`는 `람다 표현식`과 `파이프라이닝`을 활용한다.
+
+- 두 개의 비동기 계산 결과를 하나로 합친다.
+- Future 집합이 실행하는 모든 태스크의 완료를 기다린다.
+- Future 집합에서 가장 빨리 완료되는 태스크를 기다렸다가 완료를 얻는다.
+- 프로그램적으로 Future를 완료시킨다.
+- Future 완료 동작에 반응한다.
+
+### CompletableFuture로 비동기 애플리케이션 만들기
+
+이 애플리케이션을 만드는 동안 다음과 같은 기술을 배울 수 있다.
+
+[1] 고객에게 비동기 API를 제공하는 방법
+
+[2] 동기 API를 사용해야 할 때 코드를 비블록으로 만든는 방법
+
+[3] 비동기 동작의 완료에 대응하는 방법
+
+<br>
+
+## 16.2 비동기 API 구현
+
+### 동기 메서드를 비동기 메서드로 변환
+
+```java
+public double getPrice(String product) {
+  return calculatePrice(product);
+}
+```
+
+[ 비동기 메서드로 변환 ]
+
+```java
+public Future<Double> getPriceAsync(String product) {
+  CompletableFuture<Double> futurePrice = new CompletableFuture<>();
+  new Thread( () -> {
+    double price = calculatePrice(product); // 다른 스레드에서 비동기적으로 계산을 수행한다.
+    futurePrice.complete(price); // 오랜 시간이 걸리는 계산이 완료되면 Future에 값을 설정한다.
+  }).start();
+  return futurePrice; // 계산 결과가 완료되길 기다리지 않고 Future를 반환한다.
+}
+```
+
+비동기 계산과 완료 결과를 포함하는 CompletableFuture 인스턴스를 만들었다. 그리고 **실제 가격을 계산할 다른 스레드를 만든 다음에 오래 걸리는 계산 결과를 기다리지 않고 결과를 포함할 Future 인스턴스를 바로 반환**했다. **요청한 제품의 가격 정보가 도착**하면 `complete` 메서드를 이용해 CompletableFuture를 종료할 수 있다.
+
+```java
+Shop shop = new Shop("BestShop");
+long start = System.nanoTime();
+Future<Double> futurePrice = shop.getPriceAsync("my favorite product");
+long invocationTime = ((System.nanoTime() - start) / 1_000_000);
+System.out.println("Invocation returned after " + invocationTime + " msec");
+doSomeThingElse();
+// 다른 상점 검색 등 다른 작업 수행
+try {
+  // 가격 정보가 있으면 Future에서 가격 정보를 읽고, 가격 정보가 없으면 가격 정보를 받을 때까지 블록
+  double price = futurePrice.get(); 
+  System.out.println("Price is %.2f%n", price)
+} catch (Exception e) {
+  throw new RuntimeException(e);
+} 
+long retrivalTime = ((System.nanoTime() - start) / 1_000_000);
+System.out.println("Price returned after " + retrivalTime + " msec");
+```
+
+상점은 비동기 API를 제공하므로 **즉시 Future를 반환**한다. 클라이언트는 **반환된 Future를 이용해 나중에 결과를 얻을 수 있다.** 이 사이 대기하지 않고 **다른 작업 처리 가능**하다. **나중에 클라이언트가 특별히 할 일이 없으면 Future의 get 메서드를 호출**한다. (값이 계산되지 않다면 될 때까지 블록된다.)
+
+### 에러 처리 방법
+
+`completeExceptionally` 메서드: CompletableFuture 내부에서 발생한 예외를 클라이언트에게 전달
+
+```java
+public Future<Double> getPriceAsync(String product) {
+  CompletableFuture<Double> futurePrice = new CompletableFuture<>();
+  new Thread( () -> {
+    try {
+      double price = calculatePrice(product);
+      futurePrice.complete(price);
+    } catch (Exception ex) {
+      futurePrice.completeExceptionally(ex); // 에러를 포함시켜 Future를 종료
+    }
+  }).start();
+  return futurePrice;
+}
+```
+
+### 팩토리 메서드 suppluAsync로 CompletableFuture 만들기
+
+> 좀 더 간단하게 CompletableFuture를 만드는 방법도 있다.
+> 
+
+`supplyAsync` 메서드: Supplier를 인수로 받아서 CompletableFuture를 반환한다. CompletableFuture는 Supplier를 실행해서 비동기적으로 결과를 생성한다.
+
+ForkJoinPool의 Exceutor 중 하나가 Supplier를 실행할 것이다. 하지만 **두 번째 인수를 받는 오버로드 버전의 supplyAsync 메서드를 이용해서 다른 Executor를 지정 가능**하다.
+
+```java
+public Future<Double> getPriceAsync(String product) {
+  return CompletableFuture.supplyAsync(() -> calculatePrice(product));
+}
+
+// 에러 관리는 위의 코드와 동일
+```
+
+<br>
+
+## 16.3 비블록 코드 만들기
+
+### 병렬 스트림으로 요청 병렬화하기
+
+```java
+public List<String> findPrices(String product) {
+  return shops.parallelStream()
+              .map(shop -> String.format("%s price is %.2f", shop.getName(), shop.getPrice(product)))
+              .collect(toList());
+}
+```
+
+### CompletableFuture로 비동기 호출 구현하기
+
+```java
+public List<String> findPrices(String product) {
+  List<CompletableFuture<String>> priceFutures = 
+    shops.stream()
+         .map(shop -> CompletableFuture.supplyAsync( // 비동기로 계산
+                        () -> shop.getName() + " price is " + shop.getPrice(product)))
+         .collect(Collectors.toList());
+
+  return priceFutures.stream()
+                     .map(CompletableFuture::join) // 모든 비동기 동작이 끝나길 기다린다.
+                     .collect(toList());
+}
+```
+
+CompletableFuture의 `join`은 Future의 `get` 메서드와 **같은 의미를 갖는다.** 다만, join은 **아무 예외도 발생시키지 않는다는 점이 다르다.**
+
+**두 map 연산을 하나의 스트림 처리 파이프라인으로 처리하지 않고 `두 개의 스트림 파이프라인으로 처리`했다는 사실에 주목하자.** 스트림 연산은 게으른 특성이 있으므로 하나의 파이프 라인으로 연산을 처리 했다면 모든 가격 정보 요청 동작이 동기적, 순차적으로 이루어지는 결과가 된다. CompletableFuture로 각 상점의 정보를 요청할 때 기존 요청 작업이 완료되어야 join이 결과를 반환 하면서 다음 상점으로 정보를 요청할 수 있기 때문이다.
+
+[ 해결 ] **스트림 처리를 분리해 우선 CompletableFuture를 리스트로 모은 다음에 다른 작업과는 독립적으로 각자의 작업을 수행하는 모습을 보여준다.**
+
+### 더 확장성이 좋은 해결 방법
+
+[1] 다양한 Executor를 지정할 수 있다.
+
+[2] Executor로 스레드 풀의 크기를 조절해 애플리케이션에 최적화된 설정을 할 수 있다.
+
+### 커스텀 Excutor 사용하기
+
+애플리케이션이 실제로 필요한 작업량을 고려한 풀에서 관리하는 스레드 수에 맞게 Excutor를 만들 수 있으면 좋을 것이다. 스레드 수가 너무 많으면 오히려 서버가 크래시될 수 있으므로 하나의 Excutor에서 사용할 스레드의 최대 개수는 100개 이하로 설정하는 것이 바람직하다.
+
+```java
+private final Executor executor = Executors.newFixedThreadPool(
+  Math.min(shops.size(), 100), // 스레드 수의 범위는 0과 100 사이
+  new ThreadFactory() {
+    public Thread newThread(Runnable r) {
+      Thread t = new Thread (r);
+      t.setDaemon(true); // 프로그램 종료를 방해하지 않는 데몬 스레드를 사용
+      return r;
+}});
+```
+
+자바에서 **일반 스레드가 실행 중이면 자바 프로그램은 종료되지 않는다.** 어떤 이벤트를 한없이 기다리면서 종료되지 않는 일반 스레드가 있으면 문제가 될 수 있다. 반면, 데몬 스레드는 자바 프로그램이 종료될 때 강제로 종료될 수 있다. **두 스레드의 성능은 같다.**
+
+```java
+// 새로 만든 Executor를 두 번째 인수로 전달
+CompletableFuture.supplyAsync(() -> shop.getName() + " price is " + shop.getPrice(product), executor);
+```
+
+### 스트림 병렬화와 CompletableFuture 병렬화
+
+[ 어떤 병렬화를 선택할지 ]
+
+`스트림 병렬화`: I/O가 포함되지 않은 계산 중심의 동작을 실행할 때 → 구현이 간단하며 효율적
+
+`CompletableFuture 병렬화`: 작업이 I/O기다리는 작업을 병렬로 실행할 때 → 더 많은 유연성을 제공하면 적합한 스레드 수를 설정할 수 있다.
+
+<br>
+
+## 16.4 비동기 작업 파이프라인 만들기
+
+### 동기 작업과 비동기 작업 조합하기
+
+```java
+public List<String> findPrices(String product) {
+  List<CompletableFuture<String>> priceFutures = 
+    shop.stream()
+        .map(shop -> CompletableFuture.supplyAsync(() -> shop.getPrice(product), executor))
+        .map(future -> future.thenApply(Quote::parse))
+        .map(future -> future.thenCompose(quote -> CompletableFuture.supplyAsync(
+                                                      () -> Discount.applyDiscount(quote), executor)))
+        .collect(toList());
+
+  return priceFutures.stream()
+                      .map(CompletableFuture::join)
+                      .collect(toList());
+}
+```
+
+`thenApply` 메서드: **CompletableFuture가 끝날 때까지 블록하지 않는다는 점을 주의**해야 한다. 즉, CompletableFuture가 **동작을 완전히 완료한 다음**에 thenApply 메서드로 전달된 **람다 표현식을 전달**할 수 있다.
+
+`thenCompse` 메서드: **첫 번째 연산의 결과를 두 번째 연산으로 전달**한다. 즉, 첫 번째 CompletableFuture에 thenCompose 메서드를 호출하고 Function에 넘겨주는 식으로 **두 CompletableFuture를** `조합`할 수 있다.
+
+### 독립 CompletableFuture와 비독립 CompletableFuture 합치기
+
+`thenCombine` 메서드: BiFuntion을 두 번째 인수로 받는다. BiFuntion은 두 개의 CompletableFuture 결과를 어떻게 합칠지 정의한다. Async 버전이 존재한다.
+
+```java
+Future<Double> futurePriceUSD = 
+  CompletableFuture.supplyAsync(() -> shop.getPrice(product)) // 첫 번째 태스크
+    .thenCombine(
+      // 두 번째 태스크
+      CompletableFuture.supplyAsync(() -> exchangeService.getRate(Money.EUR, Money.USD),
+                                          (price, rate) -> price * rate // 두 결과를 곱해서 정보를 합친다.
+	));
+```
+
+### Future의 리플렉션과 CompletableFuture의 리플렉션
+
+Future에 비해 CompletableFuture은 `람다 표현식`을 사용한다는 큰 이점을 가진다. 람다 덕분에 다양한 동기 태스크, 비동기 태스크를 활용해 복잡한 연산 수행 방법을 효과적으로 정의할 수 있는 `선언형 API`를 만들 수 있다.
+
+### 타임아웃 효과적으로 사용하기
+
+`orTimeout` 메서드: 주어진 시간 안에 작업 완료를 못하면 `TimeoutException` 발생한다. 또 다른 CompletableFuture를 반환할 수 있도록 내부적으로 `ScheduledThreadExecutor`를 활용한다.
+
+```java
+Future<Double> futurePriceUSD = 
+  CompletableFuture.supplyAsync(() -> shop.getPrice(product)
+    .thenCombine(
+      CompletableFuture.supplyAsync(() -> exchangeService.getRate(Money.EUR, Money.USD), (price, rate) -> price * rate)
+  )
+  .orTimeout(3, TimeUnit.SECONDS); // 3초 안에 작업 완료되지 않으면 TimeoutException 발생
+```
+
+ex) EUR을 USD로 환전하는 서비스가 1초 이내로 완료되어야 하지만 그렇지 않다고 전체 계산을 Exception 처리하진 않는 상황이라면 → `completeOnTimeout` 메서드를 이용 (CompletableFuture를 반환하므로 다른 CompletableFuture 메서드와 연결 가능)
+
+```java
+Future<Double> futurePriceUSD = 
+  CompletableFuture.supplyAsync(() -> shop.getPrice(product)
+    .thenCombine(
+      CompletableFuture.supplyAsync(() -> exchangeService.getRate(Money.EUR, Money.USD)
+                            .completeOnTimeout(DEFAULT_RATE, 1, TimeUnit.SENCONDS, (price, rate) -> price * rate) // 기본 환율 값 사용
+  )
+  .orTimeout(3, TimeUnit.SECONDS);
+```
+
+<br>
+
+## 16.5 CompletableFuture의 종료에 대응하는 방법
+
+### 최저가격 검색 어플리케이션 리팩터링
+
+모든 상점에서 가격 정보를 제공할 때까지 기다리지 않고 각 상점에서 가격 정보를 제공할 때마다 즉시 보여줄 수 있도록 만들자.
+
+```java
+public Stream<CompletableFuture<String>> findPricesStream(String product) {
+  return shop.stream()
+             .map(shop -> CompletableFuture.supplyAsync(() -> shop.getPrice(product), executor))
+             .map(future -> future.thenApply(Quote::parse))
+             .map(future -> future.thenCompose(quote -> 
+                                  CompletableFuture.supplyAsync(() -> Discount.applyDiscount(quote), executor)));
+}
+```
+
+`thenAccept` 메서드: 연산 결과를 소비하는 Consumer를 인수로 받는다. 소비하므로 CompletableFuture<Void>를 반환한다.
+
+```java
+CompletableFuture[] futures = findPricesStream("myPhone")
+    .map(f -> f.thenAccept(System.out::println))
+    .toArray(size -> new CompletableFuture[size]);
+CompletableFuture.allOf(futures ).join();
+```
+
+`allOf` 팩토리 메서드: CompletableFuture 배열을 입력으로 받아 CompletableFuture<Void>를 반환한다. 전달된 모든 CompletableFuture가 완료되어야 CompletableFuture<Void>가 완료된다.
+
+- 반면, 배열의 CompletableFuture 중 하나의 작업이 끝나길 기다리는 상황이라면 → ex) 두 개의 환율 정보 서버에 동시에 접근했을 때 한 서버의 응답만 있으면 충분하다.)
+- `anyOf` 팩토리 메서드: CompletableFuture 배열을 입력으로 받아 CompletableFuture<Object>를 반환한다. CompletableFuture<Object>는 처음으로 완료한 CompletableFuture의 값으로 동작을 완료한다.
+
+<br>
+
+## 16.7 마치며
+
+- 한 개 이상의 원격 외부 서비스를 사용하는 긴 동작을 실행할 때는 **비동기 방식으로 애플리케이션의 성능과 반응성을 향상시킬 수 있다.**
+- **CompletableFuture의 기능**을 이용하면 **쉽게 비동기 API를 구현**할 수 있다.
+- CompletableFuture를 이용할 때 **비동기 태스크에서 발생한 에러를 관리하고 전달**할 수 있다.
+- **동기 API**를 **CompletableFuture로 감싸서 비동기적으로 소비**할 수 있다.
+- 서로 독립적인 비동기 동작이든 아니면 하나의 비동기 동작이 다른 비동기 동작의 결과에 의존하는 상황이든 **여러 비동기 동작을 조립하고 조합**할 수 있다.
+- CompletableFuture에 **콜백을 등록해서 Future가 동작을 끝내고 결과를 생산했을 때 어떤 코드를 실행하도록 지정**할 수 있다.
+- CompletableFuture **리스트의 모든 값이 완료될 때까지 기다릴지** 아니면 **첫 값만 완료되길 기다릴지 선택**할 수 있다.
+- 자바 9에서는 **orTime, completeOnTimeout 메서드**로 CompletableFuture에 **비동기 타임아웃 기능**을 추가했다.
