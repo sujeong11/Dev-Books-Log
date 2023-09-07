@@ -7,3 +7,4 @@
 
 ## 읽고 있는 책
 - [이펙티브 자바 | 프로그래밍인사이트](https://search.shopping.naver.com/book/catalog/32436239326?cat_id=50010920&frm=PBOKPRO&query=%EC%9E%90%EB%B0%94+%EC%9D%B4%ED%8E%99%ED%8B%B0%EB%B8%8C&NaPm=ct%3Dll6bccio%7Cci%3D055748f9940093b6f45a1c5e8ffb1db37435f00e%7Ctr%3Dboknx%7Csn%3D95694%7Chk%3D2bb8c27f8bba14261cf85168d886d1c514f955ae) - 조슈아 블로크
+- [SQL 레벨업 | DB 성능 최적화를 위한 SQL 실전 가이드](https://search.shopping.naver.com/book/catalog/32460013621?query=sql%20%EB%A0%88%EB%B2%A8%EC%97%85&NaPm=ct%3Dlm97bby0%7Cci%3D04ebb2a52f1a4cae7bccc455d43339b5298c7eda%7Ctr%3Dboksl%7Csn%3D95694%7Chk%3De2f275aa729d6c6d18c8a83006eb2ce988478e7c) - 미크
