@@ -13,12 +13,12 @@
 
 ```sql
 SELECT item_name, year, price_tax_ex AS price
-	FROM items
-	WHERE year <= 2001
+  FROM items
+  WHERE year <= 2001
 UNION ALL
 SELECT item_name, year, price_tax_in AS price
-	FROM items
-	WHERE year >= 2002
+  FROM items
+  WHERE year >= 2002
 ```
 
 이 코드는 문제를 가지고 있다. 1. 쓸데없이 길어 읽기 어려움 2. 두 개의 쿼리를 두 번이나 실행한다.
@@ -40,9 +40,9 @@ SQL에 이런 격언이 있다. `조건 분기를 WHERE 구로 하는 사람들�
     
     ```sql
     SELECT item_name, year,
-    	CASE WHEN year <= 2001 THEN price_tax_ex
-    			 WHEN year >= 2002 THEN price_tax_in
-    	END AS price
+           CASE WHEN year <= 2001 THEN price_tax_ex
+                WHEN year >= 2002 THEN price_tax_in
+           END AS price
     FROM items;
     ```
     
@@ -91,13 +91,13 @@ SQL에 이런 격언이 있다. `조건 분기를 WHERE 구로 하는 사람들�
 
   ```sql
   SELECT prefecture, SUM(pop_men) AS pop_men, SUM(pop_women) AS pop_wom
-  	FROM (SELECT prefecture, pop AS pop_men, NULL AS pop_wom
-  				FROM Population
-  				WHERE sex = '1'
-  			UNION
-  				SELECT prefecture, NULL AS pop_men, pop AS pop_wom
-  				FROM Population
-  				WHERE sex = '2' ) TMP
+  FROM (SELECT prefecture, pop AS pop_men, NULL AS pop_wom
+          FROM Population
+          WHERE sex = '1'
+        UNION
+        SELECT prefecture, NULL AS pop_men, pop AS pop_wom
+          FROM Population
+          WHERE sex = '2' ) TMP
   GROUP BY prefecture;
   ```
 
@@ -109,8 +109,8 @@ SQL에 이런 격언이 있다. `조건 분기를 WHERE 구로 하는 사람들�
     
     ```sql
     SELECT prefecture,
-    			 SUM(CASE WHEN sex = '1' THEN pop ELSE 0 END) AS pop_men,
-    			 SUM(CASE WHEN sex = '2' THEN pop ELSE 0 END) AS pop_wom
+           SUM(CASE WHEN sex = '1' THEN pop ELSE 0 END) AS pop_men,
+           SUM(CASE WHEN sex = '2' THEN pop ELSE 0 END) AS pop_wom
     FROM Population
     GROUP BY prefecture;
     ```
@@ -133,19 +133,19 @@ SQL에 이런 격언이 있다. `조건 분기를 WHERE 구로 하는 사람들�
     
     ```sql
     SELECT emp_name,
-    			 MAX(team) AS team,
+           MAX(team) AS team,
     FROM Employees
     GROUP BY emp_name
     HAVING COUNT(*) = 1
     UNION
     SELECT emp_name,
-    			 '2개를 겸무' AS team,
+           '2개를 겸무' AS team,
     FROM Employees
     GROUP BY emp_name
     HAVING COUNT(*) = 2
     UNION
     SELECT emp_name,
-    			 '3개 이상을 겸무' AS team,
+           '3개 이상을 겸무' AS team,
     FROM Employees
     GROUP BY emp_name
     HAVING COUNT(*) >= 3;
@@ -157,10 +157,10 @@ SQL에 이런 격언이 있다. `조건 분기를 WHERE 구로 하는 사람들�
     
     ```sql
     SELECT emp_name,
-    			 CASE WHEN COUNT(*) = 1 THEN MAX(team)
-    			      WHEN COUNT(*) = 2 THEN '2개를 겸무'
-    			      WHEN COUNT(*) >= 3 THEN '3개 이상을 겸무'
-    			 END AS team
+           CASE WHEN COUNT(*) = 1 THEN MAX(team)
+                WHEN COUNT(*) = 2 THEN '2개를 겸무'
+                WHEN COUNT(*) >= 3 THEN '3개 이상을 겸무'
+           END AS team
     FRM Employees
     GROUP BY emp_name;
     ```
@@ -189,12 +189,12 @@ SQL에 이런 격언이 있다. `조건 분기를 WHERE 구로 하는 사람들�
 
 ```sql
 SELECT col_1
-	FROM Table_A
-	WHERE col_2 = 'A'
+  FROM Table_A
+  WHERE col_2 = 'A'
 UNION ALL
 SELECT col_3
-	FROM Table_B
-	WHERE col_4 = 'A'
+  FROM Table_B
+  WHERE col_4 = 'A'
 ```
 
 - FROM 구에서 테이블을 결합하면 CASE 식을 사용해 원하는 결과를 구할 수 있다.
